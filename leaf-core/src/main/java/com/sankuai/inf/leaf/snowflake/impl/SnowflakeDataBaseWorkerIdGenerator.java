@@ -39,6 +39,7 @@ public class SnowflakeDataBaseWorkerIdGenerator implements WorkerIdGenerator {
     public boolean init() throws Exception {
         initDataTable(dataSource);
         this.workerId = generateWorkerId(serviceName, serviceHost);
+        scheduledUpdateWorkerIdHolder(dataSource, serviceName, serviceHost);
         return true;
     }
 
@@ -199,10 +200,13 @@ public class SnowflakeDataBaseWorkerIdGenerator implements WorkerIdGenerator {
                 Connection conn = null;
                 try {
                     conn = dataSource.getConnection();
+                    //上报数据，更新对应的数据库中的key
                     int rowNum = updateWokerHoldersTimestamp(serviceName, serviceHost, conn);
+                    //如果更新数据行为0，也就是当前服务对应的数据已将因为长时间掉线而被清理，则重新获取
                     if(rowNum <= 0){
                         generator.init();
                     }
+                    //清理超过超时时间未进行上报的服务的WorkerID占用
                     deleteOutofDateWorkerIdHolder(serviceName);
                 } catch (Exception e) {
                     log.error("scheduledUpdateWorkerIdHolder异常：", e);
