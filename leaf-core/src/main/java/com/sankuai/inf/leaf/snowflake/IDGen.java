@@ -1,8 +1,8 @@
-package com.sankuai.inf.leaf;
+package com.sankuai.inf.leaf.snowflake;
 
 import com.sankuai.inf.leaf.common.Result;
 
 public interface IDGen {
-    Result get(String key);
+    Result get();
     boolean init();
 }

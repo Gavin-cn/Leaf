@@ -1,12 +1,11 @@
 package com.sankuai.inf.leaf.server.service;
 
-import com.sankuai.inf.leaf.IDGen;
+import com.sankuai.inf.leaf.snowflake.IDGen;
 import com.sankuai.inf.leaf.common.PropertyFactory;
 import com.sankuai.inf.leaf.common.Result;
-import com.sankuai.inf.leaf.common.ZeroIDGen;
 import com.sankuai.inf.leaf.server.Constants;
 import com.sankuai.inf.leaf.server.exception.InitException;
-import com.sankuai.inf.leaf.snowflake.SnowflakeIDGenImpl;
+import com.sankuai.inf.leaf.snowflake.impl.SnowflakeIDGenImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,7 @@ public class SnowflakeService {
 
     private IDGen idGen;
 
-    public SnowflakeService() throws InitException {
+    public SnowflakeService() throws Exception {
         Properties properties = PropertyFactory.getProperties();
         boolean flag = Boolean.parseBoolean(properties.getProperty(Constants.LEAF_SNOWFLAKE_ENABLE, "true"));
         if (flag) {
@@ -38,6 +37,6 @@ public class SnowflakeService {
     }
 
     public Result getId(String key) {
-        return idGen.get(key);
+        return idGen.get();
     }
 }

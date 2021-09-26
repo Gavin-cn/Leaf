@@ -1,13 +1,14 @@
-package com.sankuai.inf.leaf.snowflake;
+package com.sankuai.inf.leaf.snowflake.impl;
 
 import com.google.common.base.Preconditions;
-import com.sankuai.inf.leaf.IDGen;
 import com.sankuai.inf.leaf.common.Result;
 import com.sankuai.inf.leaf.common.Status;
-import com.sankuai.inf.leaf.common.Utils;
+import com.sankuai.inf.leaf.snowflake.IDGen;
+import com.sankuai.inf.leaf.snowflake.WorkerIdGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.util.Random;
 
 public class SnowflakeIDGenImpl implements IDGen {
@@ -31,37 +32,47 @@ public class SnowflakeIDGenImpl implements IDGen {
     private long lastTimestamp = -1L;
     private static final Random RANDOM = new Random();
 
-    public SnowflakeIDGenImpl(String zkAddress, int port) {
+    public SnowflakeIDGenImpl(String zkAddress, int port) throws Exception {
         //Thu Nov 04 2010 09:42:54 GMT+0800 (中国标准时间) 
         this(zkAddress, port, 1288834974657L);
     }
 
+    public SnowflakeIDGenImpl(WorkerIdGenerator holder, long twepoch) throws Exception {
+        this.twepoch = twepoch;
+        Preconditions.checkArgument(timeGen() > twepoch, "Snowflake not support twepoch gt currentTime");
+        boolean initFlag = holder.init();
+        if (initFlag) {
+            workerId = holder.getWorkerID();
+            LOGGER.info("START SUCCESS USE WORKERID-{}", workerId);
+        } else {
+            Preconditions.checkArgument(initFlag, "Snowflake Id Gen is not init ok");
+        }
+        LOGGER.info("twepoch: {}", twepoch);
+        Preconditions.checkArgument(workerId >= 0 && workerId <= maxWorkerId, "workerID must gte 0 and lte 1023");
+    }
     /**
      * @param zkAddress zk地址
      * @param port      snowflake监听端口
      * @param twepoch   起始的时间戳
      */
-    public SnowflakeIDGenImpl(String zkAddress, int port, long twepoch) {
-        this.twepoch = twepoch;
-        Preconditions.checkArgument(timeGen() > twepoch, "Snowflake not support twepoch gt currentTime");
-        final String ip = Utils.getIp();
-        SnowflakeZookeeperHolder holder = new SnowflakeZookeeperHolder(ip, String.valueOf(port), zkAddress);
-        LOGGER.info("twepoch:{} ,ip:{} ,zkAddress:{} port:{}", twepoch, ip, zkAddress, port);
-        boolean initFlag = holder.init();
-        if (initFlag) {
-            workerId = holder.getWorkerID();
-            LOGGER.info("START SUCCESS USE ZK WORKERID-{}", workerId);
-        } else {
-            Preconditions.checkArgument(initFlag, "Snowflake Id Gen is not init ok");
-        }
-        Preconditions.checkArgument(workerId >= 0 && workerId <= maxWorkerId, "workerID must gte 0 and lte 1023");
+    public SnowflakeIDGenImpl(String zkAddress, int port, long twepoch) throws Exception {
+        this(SnowflakeZookeeperWorkerIdGenerator.generatorWorkerIdGenerator(zkAddress, port), twepoch);
+    }
+
+    /**
+     * @param dataSource  数据源
+     * @param twepoch   起始的时间戳
+     */
+    public SnowflakeIDGenImpl(DataSource dataSource, String serviceName, String serviceHost, long twepoch) throws Exception {
+        this(new SnowflakeDataBaseWorkerIdGenerator(dataSource, serviceName, serviceHost), twepoch);
     }
 
     @Override
-    public synchronized Result get(String key) {
+    public synchronized Result get() {
         long timestamp = timeGen();
         if (timestamp < lastTimestamp) {
             long offset = lastTimestamp - timestamp;
+
             if (offset <= 5) {
                 try {
                     wait(offset << 1);

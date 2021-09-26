@@ -1,7 +1,8 @@
-package com.sankuai.inf.leaf.snowflake;
+package com.sankuai.inf.leaf.snowflake.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sankuai.inf.leaf.snowflake.WorkerIdGenerator;
 import com.sankuai.inf.leaf.snowflake.exception.CheckLastTimeException;
 import org.apache.commons.io.FileUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -26,8 +27,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-public class SnowflakeZookeeperHolder {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SnowflakeZookeeperHolder.class);
+public class SnowflakeZookeeperWorkerIdGenerator implements WorkerIdGenerator {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SnowflakeZookeeperWorkerIdGenerator.class);
     private String zk_AddressNode = null;//保存自身的key  ip:port-000000001
     private String listenAddress = null;//保存自身的key ip:port
     private int workerID;
@@ -39,17 +40,25 @@ public class SnowflakeZookeeperHolder {
     private String connectionString;
     private long lastUpdateTime;
 
-    public SnowflakeZookeeperHolder(String ip, String port, String connectionString) {
+    public SnowflakeZookeeperWorkerIdGenerator(String ip, String port, String connectionString) {
         this.ip = ip;
         this.port = port;
         this.listenAddress = ip + ":" + port;
         this.connectionString = connectionString;
     }
 
+    public static WorkerIdGenerator generatorWorkerIdGenerator(String zkAddress, int port){
+        final String ip = Utils.getIp();
+        WorkerIdGenerator holder = new SnowflakeZookeeperWorkerIdGenerator(ip, String.valueOf(port), zkAddress);
+        LOGGER.info("ip:{} ,zkAddress:{} port:{}", ip, zkAddress, port);
+        return holder;
+    }
+
     public boolean init() {
         try {
             CuratorFramework curator = createWithOptions(connectionString, new RetryUntilElapsed(1000, 4), 10000, 6000);
             curator.start();
+            //PATH_FOREVER: /serviceName
             Stat stat = curator.checkExists().forPath(PATH_FOREVER);
             if (stat == null) {
                 //不存在根节点,机器第一次启动,创建/snowflake/ip:port-000000000,并上传数据
